@@ -10,7 +10,6 @@ import { authRoutes, guard, currentSession } from './auth.js';
 import { collectRoutes } from './collect.js';
 import { statsRoutes } from './stats.js';
 import { startJobs } from './jobs.js';
-import { statusRoutes } from './status.js';
 
 const THEME = 'https://css.deltavdevs.com';
 
@@ -36,8 +35,6 @@ export async function buildApp(options = {}) {
     crossOriginEmbedderPolicy: false,
   });
   await app.register(cookie);
-  // status.deltavdevs.com: public status page only; its hook answers before any analytics route.
-  await statusRoutes(app);
   app.addHook('onSend', async (request, reply) => {
     reply.header('X-Robots-Tag', 'noindex, nofollow');
     if (request.url.startsWith('/api/') || request.url.startsWith('/auth/')) reply.header('Cache-Control', 'no-store');
