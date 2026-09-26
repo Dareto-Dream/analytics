@@ -256,8 +256,11 @@ test('static files are served and path tricks get nothing', { skip }, async () =
   assert.equal(page.statusCode, 200); assert.match(page.body, /Continue with Ward/);
   assert.match(page.headers['content-security-policy'], /frame-ancestors 'none'/);
   for (const url of ['/app.js', '/analytics.css', '/favicon.svg']) assert.equal((await app.inject({ method: 'GET', url })).statusCode, 200, url);
-  const t = await app.inject({ method: 'GET', url: '/t.js' });
-  assert.equal(t.statusCode, 200); assert.match(t.headers['content-type'], /javascript/);
+  for (const url of ['/t.js', '/consent.js']) {
+    const t = await app.inject({ method: 'GET', url });
+    assert.equal(t.statusCode, 200, url); assert.match(t.headers['content-type'], /javascript/);
+    assert.equal(t.headers['cross-origin-resource-policy'], 'cross-origin', url);
+  }
   for (const url of ['/..%2fpackage.json', '/%2e%2e/src/config.js', '/..%5csrc%5cconfig.js', '/public/../src/auth.js', '/api%2fme', '/%2fapi/me']) {
     const res = await app.inject({ method: 'GET', url });
     assert.ok([400, 401, 403, 404].includes(res.statusCode), `${url} -> ${res.statusCode}`);

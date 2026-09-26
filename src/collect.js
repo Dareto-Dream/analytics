@@ -46,12 +46,15 @@ function parse(schema, body) {
 }
 
 export async function collectRoutes(app) {
-  const script = await readFile(new URL('../public/t.js', import.meta.url), 'utf8');
-  app.get('/t.js', async (_request, reply) => reply
-    .type('application/javascript; charset=utf-8')
-    .header('Cache-Control', 'public, max-age=3600')
-    .header('Cross-Origin-Resource-Policy', 'cross-origin')
-    .send(script));
+  // The two scripts sites load from us: the tracker and the consent banner.
+  for (const name of ['t.js', 'consent.js']) {
+    const script = await readFile(new URL(`../public/${name}`, import.meta.url), 'utf8');
+    app.get(`/${name}`, async (_request, reply) => reply
+      .type('application/javascript; charset=utf-8')
+      .header('Cache-Control', 'public, max-age=3600')
+      .header('Cross-Origin-Resource-Policy', 'cross-origin')
+      .send(script));
+  }
 
   for (const url of ['/e', '/consent']) {
     app.options(url, async (request, reply) => {
