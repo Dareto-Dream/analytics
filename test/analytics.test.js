@@ -250,3 +250,17 @@ test('dashboard: overview, a site, and uptime outages', { skip }, async () => {
   assert.equal(fc.outages.length, 1); assert.equal(fc.outages[0].reason, 'ECONNREFUSED');
   assert.equal(up.sites.find(s => s.id === 'blog').uptime, 1);
 });
+
+test('static files are served and path tricks get nothing', { skip }, async () => {
+  const page = await app.inject({ method: 'GET', url: '/' });
+  assert.equal(page.statusCode, 200); assert.match(page.body, /Continue with Ward/);
+  assert.match(page.headers['content-security-policy'], /frame-ancestors 'none'/);
+  for (const url of ['/app.js', '/analytics.css', '/favicon.svg']) assert.equal((await app.inject({ method: 'GET', url })).statusCode, 200, url);
+  const t = await app.inject({ method: 'GET', url: '/t.js' });
+  assert.equal(t.statusCode, 200); assert.match(t.headers['content-type'], /javascript/);
+  for (const url of ['/..%2fpackage.json', '/%2e%2e/src/config.js', '/..%5csrc%5cconfig.js', '/public/../src/auth.js', '/api%2fme', '/%2fapi/me']) {
+    const res = await app.inject({ method: 'GET', url });
+    assert.ok([400, 401, 403, 404].includes(res.statusCode), `${url} -> ${res.statusCode}`);
+    assert.doesNotMatch(res.body, /SESSION_SECRET|sessionSecret|"name": "deltav-analytics"/, url);
+  }
+});
