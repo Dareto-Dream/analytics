@@ -50,11 +50,12 @@ before(async () => {
     server: await import('../src/server.js'),
     dbm: await import('../src/db.js'),
     jobs: await import('../src/jobs.js'),
+    status: await import('../src/status.js'),
     auth: await import('../src/auth.js'),
   };
   await mod.dbm.migrate();
   db = mod.dbm.pool;
-  await db.query('TRUNCATE requests, ingest_cursors, pageviews, outbound, links, link_clicks, uptime_checks, consents, salts, sessions RESTART IDENTITY CASCADE');
+  await db.query('TRUNCATE requests, ingest_cursors, pageviews, outbound, links, link_clicks, uptime_checks, consents, salts, sessions, status_checks, status_daily RESTART IDENTITY CASCADE');
   app = await mod.server.buildApp({ logger: false });
 });
 after(async () => { if (app) await app.close(); globalThis.fetch = realFetch; });
@@ -266,4 +267,44 @@ test('static files are served and path tricks get nothing', { skip }, async () =
     assert.ok([400, 401, 403, 404].includes(res.statusCode), `${url} -> ${res.statusCode}`);
     assert.doesNotMatch(res.body, /SESSION_SECRET|sessionSecret|"name": "deltav-analytics"/, url);
   }
+});
+
+// ---------- status.deltavdevs.com ----------
+test('status host: only the public page and its json, never analytics', { skip }, async () => {
+  const on = url => app.inject({ method: 'GET', url, headers: { host: 'status.deltavdevs.com' } });
+  const page = await on('/');
+  assert.equal(page.statusCode, 200); assert.match(page.body, /DeltaVDevs status/);
+  assert.match(page.headers['content-security-policy'], /script-src 'self'/);
+  for (const url of ['/status.css', '/status-app.js', '/favicon.svg', '/health']) assert.equal((await on(url)).statusCode, 200, url);
+  for (const url of ['/api/me', '/api/overview', '/t.js', '/consent.js', '/auth/ward/start', '/r/anything', '/app.js', '/index.html']) assert.equal((await on(url)).statusCode, 404, url);
+  assert.equal((await app.inject({ method: 'POST', url: '/e', headers: { host: 'status.deltavdevs.com' } })).statusCode, 405);
+  // The analytics host is unaffected.
+  assert.match((await app.inject({ method: 'GET', url: '/' })).body, /Continue with Ward/);
+});
+
+test('status checks: below 500 is up, errors and timeouts are down; rollups and outages', { skip }, async () => {
+  const targets = [
+    { id: 'a.test', host: 'a.test', name: 'A', group: 'G', url: 'https://a.test/' },
+    { id: 'b.test', host: 'b.test', name: 'B', group: 'G', url: 'https://b.test/' },
+    { id: 'c.test', host: 'c.test', name: 'C', group: 'G', url: 'https://c.test/' },
+  ];
+  const fetcher = async url => {
+    if (url.includes('c.test')) throw Object.assign(new Error('x'), { cause: { code: 'ENOTFOUND' } });
+    return new Response('', { status: url.includes('a.test') ? 404 : 502 });
+  };
+  await mod.status.checkStatus({ fetcher, targets });
+  await db.query("INSERT INTO status_checks (target, at, ok, status) VALUES ('a.test', now() - interval '20 days', true, 200)");
+  const rows = Object.fromEntries((await db.query("SELECT target, ok, status, error FROM status_checks WHERE at > now() - interval '1 hour'")).rows.map(r => [r.target, r]));
+  assert.equal(rows['a.test'].ok, true, 'a 404 at / still means the server is up');
+  assert.equal(rows['b.test'].ok, false); assert.equal(rows['b.test'].status, 502);
+  assert.equal(rows['c.test'].ok, false); assert.equal(rows['c.test'].error, 'domain not found');
+  await mod.status.rollupStatus();
+  assert.equal(await count("SELECT count(*) AS n FROM status_checks WHERE at < now() - interval '14 days'"), 0, 'old raw checks dropped');
+  assert.equal(await count("SELECT count(*) AS n FROM status_daily WHERE target = 'b.test' AND up = 0"), 1);
+  const data = await mod.status.statusData();
+  const b = data.outages.find(o => o.host === 'b.test');
+  assert.ok(b && b.ongoing);
+  const json = await app.inject({ method: 'GET', url: '/status.json', headers: { host: 'status.deltavdevs.com' } });
+  assert.equal(json.statusCode, 200); assert.equal(json.headers['access-control-allow-origin'], '*');
+  assert.ok(json.json().sites.length >= 30, 'every configured hostname is listed');
 });

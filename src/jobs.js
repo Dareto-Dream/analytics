@@ -1,6 +1,7 @@
 import { config, siteByHost } from './config.js';
 import { query, one } from './db.js';
 import { ipHash, isBot, device, browser, cleanPath } from './privacy.js';
+import { checkStatus, rollupStatus } from './status.js';
 
 // ---------- Railway request logs ----------
 // Every run asks Railway for all sites at once (GraphQL aliases), so a run costs
@@ -132,8 +133,10 @@ function every(ms, name, job, log) {
 export function startJobs(log) {
   const timers = [
     every(60_000, 'uptime', () => checkUptime(), log),
+    every(60_000, 'status', () => checkStatus(), log),
     every(5 * 60_000, 'railway', () => ingestRailway(), log),
     every(60 * 60_000, 'retention', () => applyRetention(), log),
+    every(60 * 60_000, 'status rollup', () => rollupStatus(), log),
   ];
   return () => timers.forEach(clearInterval);
 }

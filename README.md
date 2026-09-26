@@ -44,3 +44,7 @@ TEST_PG_URL=postgres://user:pass@localhost:5432/postgres npm test   # creates an
 ```
 
 Sites, hosts, uptime URLs and Railway services are listed in `src/config.js`; `ANALYTICS_SITES` (same JSON shape) replaces the list.
+
+## Public status page
+
+The same service answers on `status.deltavdevs.com` with a public status page and `/status.json`, and nothing else (every other path is a 404 on that hostname). Every `*.deltavdevs.com` hostname in `src/status.js` is checked once a minute; up means the server answered with anything below 500, down means a 5xx, a timeout or no connection. Raw checks are kept 14 days and daily totals for good, which gives the 90-day bars. Add or remove hostnames in `TARGETS`.

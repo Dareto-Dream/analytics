@@ -1,0 +1,28 @@
+:root { color-scheme: dark; --bg: #0b0d10; --card: #12151a; --line: #22262e; --text: #e7e9ee; --muted: #8b90a0; --up: #22c55e; --warn: #eab308; --down: #ef4444; --none: #2a2e37; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+a { color: #7dd3c0; }
+.wrap { max-width: 960px; margin: 0 auto; padding: 40px 20px 60px; }
+.top h1 { margin: 0 0 8px; font-size: 28px; }
+.summary { margin: 0; font-size: 18px; font-weight: 600; }
+.summary.up { color: var(--up); } .summary.down { color: var(--down); }
+.muted { color: var(--muted); font-size: 13px; }
+.group { margin-top: 28px; }
+.group h2, .outages h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 10px; }
+.site { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; display: grid; gap: 8px; }
+.site .head { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+.site .name { font-weight: 600; }
+.site .host { color: var(--muted); font: 12px ui-monospace, SFMono-Regular, Consolas, monospace; margin-left: 8px; }
+.state { font-size: 13px; white-space: nowrap; }
+.state.up { color: var(--up); } .state.down { color: var(--down); } .state.none { color: var(--muted); }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: 0; background: var(--none); }
+.dot.up { background: var(--up); } .dot.down { background: var(--down); }
+.bars { display: grid; grid-template-columns: repeat(90, 1fr); gap: 2px; height: 26px; }
+.bars span { border-radius: 2px; background: var(--none); }
+.bars span.good { background: var(--up); } .bars span.warn { background: var(--warn); } .bars span.bad { background: var(--down); }
+.foot { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+.outage { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 14px; flex-wrap: wrap; }
+.outage .when { color: var(--muted); font-size: 13px; }
+.outage.ongoing .what { color: var(--down); }
+footer { margin-top: 36px; }
+@media (max-width: 600px) { .bars { grid-template-columns: repeat(45, 1fr); } .bars span:nth-child(-n+45) { display: none; } }
