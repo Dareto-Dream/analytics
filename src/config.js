@@ -23,6 +23,8 @@ export const DEFAULT_SITES = [
     railway: { ...DELTA_V_DEVS, serviceId: '6c8ec722-57bd-430f-b720-62ad2be4c0eb' } },
   { id: 'telescreen', name: 'Telescreen', hosts: ['telescreen.deltavdevs.com'], url: 'https://telescreen.deltavdevs.com/health', cookies: false,
     railway: { ...DELTA_V_DEVS, serviceId: '0ef1104d-1e48-4153-96ca-c4f5db96dccf' } },
+  { id: 'search', name: 'Search', hosts: ['search.deltavdevs.com'], url: 'https://search.deltavdevs.com/v1/health', cookies: false,
+    railway: { projectId: 'fd4d9c43-696a-4d42-8697-c00a2036fc4c', environmentId: 'f2cc4485-2494-4be2-8f69-d676276bb8b1', serviceId: '79863c05-a699-44a0-8ea0-9915bc0d0c2c' } },
   { id: 'firstcommand', name: 'FIRST Command', hosts: ['fc.deltavdevs.com'], url: 'https://fc.deltavdevs.com/', cookies: true,
     railway: { projectId: '65a48e7e-0789-4e6d-801c-880457099e6b', environmentId: '383df56e-7f72-459a-aadc-4e1d1fd566f2', serviceId: 'b1ebda3d-c2cf-40c1-8cc9-9f91c810aec2' } },
 ];
