@@ -117,7 +117,7 @@ async function siteView(id) {
       tile('p95 response', ms(s.p95_ms)), tile('check latency', ms(s.latency_ms))),
     h('p', { class: 'caption' }, 'Visitors count consented visitors once and everyone else once per day, so longer ranges over-count a little. ', consentNote),
     h('section', { class: 'card' },
-      h('div', { class: 'legend' }, h('span', {}, h('i', { style: { background: 'rgba(20,184,166,.55)' } }), 'page views'), h('span', {}, h('i', { style: { background: '#a78bfa' } }), 'requests (no bots)'), h('span', {}, h('i', { style: { background: 'var(--red)' } }), 'server errors')),
+      h('div', { class: 'legend' }, h('span', {}, h('i', { style: { background: 'rgba(235,104,65,.55)' } }), 'page views'), h('span', {}, h('i', { style: { background: '#3f88c5' } }), 'requests (no bots)'), h('span', {}, h('i', { style: { background: 'var(--red)' } }), 'server errors')),
       barChart(d.views, { line: d.requests, errors: d.errors, bucket: d.bucket })),
     h('div', { class: 'panels' },
       panel('Pages', d.pages, [{ key: 'path', label: 'path' }, { key: 'views', label: 'views', n: 1 }, { key: 'visitors', label: 'visitors', n: 1 }]),
