@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { config, siteById } from './config.js';
+import { config, siteById, hostSql } from './config.js';
 import { query, one } from './db.js';
 import { requireLevel, csrfFor } from './auth.js';
 import { lastIngest } from './jobs.js';
@@ -63,7 +63,7 @@ export async function statsRoutes(app) {
     const site = await siteOr404(request.params.id);
     const { range, span, bucket } = rangeOf(request);
     const p = [site.id, span];
-    const own = site.hosts;
+    const own = hostSql(site);
     const [summary, views, requests, errors, pages, referrers, utm, outbound, devices, browsers, statuses, redirects, missing, slow, consent] = await Promise.all([
       siteSummary(site, span),
       series('pageviews', '', site, span, bucket),
@@ -71,7 +71,7 @@ export async function statsRoutes(app) {
       series('requests', 'AND status >= 500', site, span, bucket),
       top(`SELECT path, count(*)::int AS views, count(DISTINCT ${VISITOR})::int AS visitors FROM pageviews WHERE site = $1 AND at > now() - $2::interval GROUP BY path ORDER BY views DESC`, p),
       top(`SELECT COALESCE(referrer_host, '(direct)') AS source, count(*)::int AS views FROM pageviews WHERE site = $1 AND at > now() - $2::interval
-             AND (referrer_host IS NULL OR NOT (referrer_host = ANY($3))) GROUP BY 1 ORDER BY views DESC`, [...p, own]),
+             AND (referrer_host IS NULL OR NOT (referrer_host = ANY($3) OR referrer_host LIKE ANY($4))) GROUP BY 1 ORDER BY views DESC`, [...p, own.exact, own.like]),
       top(`SELECT COALESCE(utm_source, '-') AS source, COALESCE(utm_medium, '-') AS medium, COALESCE(utm_campaign, '-') AS campaign, count(*)::int AS views
              FROM pageviews WHERE site = $1 AND at > now() - $2::interval AND (utm_source IS NOT NULL OR utm_campaign IS NOT NULL) GROUP BY 1, 2, 3 ORDER BY views DESC`, p),
       top('SELECT target_host AS host, count(*)::int AS clicks FROM outbound WHERE site = $1 AND at > now() - $2::interval GROUP BY 1 ORDER BY clicks DESC', p),

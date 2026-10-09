@@ -25,6 +25,9 @@ export const DEFAULT_SITES = [
     railway: { ...DELTA_V_DEVS, serviceId: '0ef1104d-1e48-4153-96ca-c4f5db96dccf' } },
   { id: 'search', name: 'Search', hosts: ['search.deltavdevs.com'], url: 'https://search.deltavdevs.com/v1/health', cookies: false,
     railway: { projectId: 'fd4d9c43-696a-4d42-8697-c00a2036fc4c', environmentId: 'f2cc4485-2494-4be2-8f69-d676276bb8b1', serviceId: '79863c05-a699-44a0-8ea0-9915bc0d0c2c' } },
+  // Logger lives in its own Railway project; every workspace is a subdomain, so its hosts include a wildcard.
+  { id: 'logger', name: 'Logger', hosts: ['logger.deltavdevs.com', '*.logger.deltavdevs.com'], url: 'https://logger.deltavdevs.com/health', cookies: true,
+    railway: { projectId: 'c80a6dc8-3395-46df-9c0b-80a95c6f0103', environmentId: '23833e69-1d2e-4641-8858-aa9afe06bfd7', serviceId: '39ee099a-fa90-463d-a519-e660ef5fd5bf' } },
   { id: 'firstcommand', name: 'FIRST Command', hosts: ['fc.deltavdevs.com'], url: 'https://fc.deltavdevs.com/', cookies: true,
     railway: { projectId: '65a48e7e-0789-4e6d-801c-880457099e6b', environmentId: '383df56e-7f72-459a-aadc-4e1d1fd566f2', serviceId: 'b1ebda3d-c2cf-40c1-8cc9-9f91c810aec2' } },
 ];
@@ -58,7 +61,16 @@ export const config = {
 };
 
 export const siteById = id => config.sites.find(s => s.id === id);
-export const siteByHost = host => config.sites.find(s => s.hosts.includes(String(host || '').toLowerCase()));
+// A host entry is exact, or "*.example.com" for any single label under example.com.
+export function hostMatches(site, host) {
+  const h = String(host || '').toLowerCase();
+  return site.hosts.some(entry => entry.startsWith('*.')
+    ? h.endsWith(entry.slice(1)) && !h.slice(0, -entry.length + 1).includes('.') && h.length > entry.length - 1
+    : entry === h);
+}
+export const siteByHost = host => config.sites.find(s => hostMatches(s, host));
+// For SQL: exact hosts, and LIKE patterns for the wildcards.
+export const hostSql = site => ({ exact: site.hosts.filter(h => !h.startsWith('*.')), like: site.hosts.filter(h => h.startsWith('*.')).map(h => `%${h.slice(1)}`) });
 
 // Fail closed: an admin tool that can't check who's staff, or signs sessions with a weak key, must not boot.
 export function assertConfig() {

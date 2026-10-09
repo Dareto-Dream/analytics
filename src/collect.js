@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { z } from 'zod';
-import { config, siteByHost } from './config.js';
+import { config, siteByHost, hostMatches } from './config.js';
 import { query, one } from './db.js';
 import { ipHash, isBot, device, browser, splitUrl, cleanPath, clip } from './privacy.js';
 
@@ -74,7 +74,7 @@ export async function collectRoutes(app) {
     const data = parse(event, request.body);
     const page = data && splitUrl(data.u);
     // The reported page has to be on the site the request came from.
-    if (!data || !page || !site.hosts.includes(page.host)) return reply.code(400).send({ error: 'bad event' });
+    if (!data || !page || !hostMatches(site, page.host)) return reply.code(400).send({ error: 'bad event' });
     const hash = await ipHash(request.ip, site.id);
     if (limited(hash || request.ip)) return reply.code(429).send();
     // Visitor and session ids only count when the site allows cookies at all.

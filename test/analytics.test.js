@@ -233,7 +233,7 @@ test('dashboard: overview, a site, and uptime outages', { skip }, async () => {
   const viewer = await staff('viewer');
   const get = url => app.inject({ method: 'GET', url, headers: { cookie: viewer.cookie } }).then(r => { assert.equal(r.statusCode, 200, r.body); return r.json(); });
   const over = await get('/api/overview?range=24h');
-  assert.equal(over.sites.length, 7);
+  assert.equal(over.sites.length, (await import('../src/config.js')).DEFAULT_SITES.length);
   const blog = over.sites.find(s => s.id === 'blog');
   assert.ok(blog.views >= 1); assert.equal(blog.errors, 1); assert.equal(blog.spark.length >= 24, true);
   const site = await get('/api/sites/blog?range=7d');
@@ -266,4 +266,12 @@ test('static files are served and path tricks get nothing', { skip }, async () =
     assert.ok([400, 401, 403, 404].includes(res.statusCode), `${url} -> ${res.statusCode}`);
     assert.doesNotMatch(res.body, /SESSION_SECRET|sessionSecret|"name": "deltav-analytics"/, url);
   }
+});
+
+test('wildcard hosts: one label under the domain, nothing else', async () => {
+  const { siteByHost } = await import('../src/config.js');
+  assert.equal(siteByHost('logger.deltavdevs.com')?.id, 'logger');
+  assert.equal(siteByHost('crew.logger.deltavdevs.com')?.id, 'logger');
+  assert.equal(siteByHost('a.b.logger.deltavdevs.com'), undefined);
+  assert.equal(siteByHost('evillogger.deltavdevs.com'), undefined);
 });
