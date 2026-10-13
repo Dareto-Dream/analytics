@@ -1,6 +1,7 @@
 import { config, siteByHost } from './config.js';
 import { query, one } from './db.js';
 import { ipHash, isBot, device, browser, cleanPath } from './privacy.js';
+import { announce } from './hooks.js';
 
 // ---------- Railway request logs ----------
 // Every run asks Railway for all sites at once (GraphQL aliases), so a run costs
@@ -113,6 +114,8 @@ export async function applyRetention() {
   await run('consents', `UPDATE consents SET consent_id = NULL WHERE at < ${cutoff} AND consent_id IS NOT NULL`);
   await run('salts', 'DELETE FROM salts WHERE day < current_date - 1');
   await run('sessions', 'DELETE FROM sessions WHERE expires_at < now()');
+  const stripped = ['pageviews', 'requests', 'outbound', 'link_clicks', 'go_clicks', 'store_downloads', 'consents'].reduce((n, k) => n + done[k], 0);
+  if (stripped) announce('retention.ran', `Privacy retention de-identified ${stripped} rows`, done);
   return done;
 }
 
