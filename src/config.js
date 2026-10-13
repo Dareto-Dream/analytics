@@ -28,6 +28,10 @@ export const DEFAULT_SITES = [
   // Logger lives in its own Railway project; every workspace is a subdomain, so its hosts include a wildcard.
   { id: 'logger', name: 'Logger', hosts: ['logger.deltavdevs.com', '*.logger.deltavdevs.com'], url: 'https://logger.deltavdevs.com/health', cookies: true,
     railway: { projectId: 'c80a6dc8-3395-46df-9c0b-80a95c6f0103', environmentId: '23833e69-1d2e-4641-8858-aa9afe06bfd7', serviceId: '39ee099a-fa90-463d-a519-e660ef5fd5bf' } },
+  { id: 'go', name: 'Go', hosts: ['go.deltavdevs.com'], url: 'https://go.deltavdevs.com/health', cookies: false,
+    railway: { ...DELTA_V_DEVS, serviceId: 'bde4461d-69c3-472f-a1d2-c08276633975' } },
+  { id: 'store', name: 'Store', hosts: ['store.deltavdevs.com'], url: 'https://store.deltavdevs.com/health', cookies: false,
+    railway: { ...DELTA_V_DEVS, serviceId: '56c6f820-4ce6-495b-b1cf-b015e4016686' } },
   { id: 'firstcommand', name: 'FIRST Command', hosts: ['fc.deltavdevs.com'], url: 'https://fc.deltavdevs.com/', cookies: true,
     railway: { projectId: '65a48e7e-0789-4e6d-801c-880457099e6b', environmentId: '383df56e-7f72-459a-aadc-4e1d1fd566f2', serviceId: 'b1ebda3d-c2cf-40c1-8cc9-9f91c810aec2' } },
 ];
