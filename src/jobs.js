@@ -108,6 +108,8 @@ export async function applyRetention() {
   await run('requests', `UPDATE requests SET ip_hash = NULL, user_agent = NULL WHERE at < ${cutoff} AND (ip_hash IS NOT NULL OR user_agent IS NOT NULL)`);
   await run('outbound', `UPDATE outbound SET visitor_id = NULL, ip_hash = NULL WHERE at < ${cutoff} AND (visitor_id IS NOT NULL OR ip_hash IS NOT NULL)`);
   await run('link_clicks', `UPDATE link_clicks SET ip_hash = NULL WHERE at < ${cutoff} AND ip_hash IS NOT NULL`);
+  await run('go_clicks', `UPDATE go_clicks SET ip_hash = NULL WHERE at < ${cutoff} AND ip_hash IS NOT NULL`);
+  await run('store_downloads', `UPDATE store_downloads SET ip_hash = NULL WHERE at < ${cutoff} AND ip_hash IS NOT NULL`);
   await run('consents', `UPDATE consents SET consent_id = NULL WHERE at < ${cutoff} AND consent_id IS NOT NULL`);
   await run('salts', 'DELETE FROM salts WHERE day < current_date - 1');
   await run('sessions', 'DELETE FROM sessions WHERE expires_at < now()');

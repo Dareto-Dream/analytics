@@ -8,6 +8,7 @@ import { config, assertConfig } from './config.js';
 import { migrate, pool } from './db.js';
 import { authRoutes, guard, currentSession } from './auth.js';
 import { collectRoutes } from './collect.js';
+import { ingestRoutes } from './ingest.js';
 import { statsRoutes } from './stats.js';
 import { startJobs } from './jobs.js';
 
@@ -51,6 +52,7 @@ export async function buildApp(options = {}) {
   app.get('/robots.txt', async (_r, reply) => reply.type('text/plain').send('User-agent: *\nDisallow: /\n'));
   await app.register(authRoutes);
   await app.register(collectRoutes);
+  await app.register(ingestRoutes);
   await app.register(async api => {
     api.addHook('onRequest', guard);
     await api.register(statsRoutes);

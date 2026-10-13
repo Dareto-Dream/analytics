@@ -53,6 +53,8 @@ export const config = {
     clientSecret: env.WARD_CLIENT_SECRET || '',
   },
   railwayToken: env.RAILWAY_API_TOKEN || '',
+  // go and store report clicks and downloads to /ingest/* with this key.
+  ingestKey: env.ANALYTICS_INGEST_KEY || '',
   sites: sites(),
   // Background jobs; tests turn them off and call them directly.
   jobs: env.ANALYTICS_JOBS !== 'off',
@@ -79,6 +81,7 @@ export function assertConfig() {
   if (!config.databaseUrl) problems.push('DATABASE_URL is required');
   if (!config.ward.url || !config.ward.clientId || !config.ward.clientSecret) problems.push('WARD_URL, WARD_CLIENT_ID and WARD_CLIENT_SECRET are required');
   if (config.production && !config.publicUrl.startsWith('https://')) problems.push('PUBLIC_URL must be https in production');
+  if (config.ingestKey && config.ingestKey.length < 32) problems.push('ANALYTICS_INGEST_KEY must be at least 32 characters');
   for (const s of config.sites) if (!/^[a-z0-9]{2,20}$/.test(s.id) || !Array.isArray(s.hosts) || !s.hosts.length) problems.push(`bad site entry: ${JSON.stringify(s).slice(0, 80)}`);
   if (problems.length) throw new Error(`analytics refuses to start:\n - ${problems.join('\n - ')}`);
 }
