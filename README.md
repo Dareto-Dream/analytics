@@ -9,6 +9,9 @@ Analytics for every DeltaVDevs site, at https://analytics.deltavdevs.com. Staff 
 - **Uptime:** every site is checked every minute; outages are listed with the reason.
 - **Short links:** `analytics.deltavdevs.com/r/<name>` counts a click and sends the visitor on. Viewers can look, admins and owners can create and turn links off, and only owners can delete them.
 
+- **Go links:** clicks on the short links made at go.deltavdevs.com (sources, devices, links nobody clicks).
+- **Store downloads:** downloads of the files shared at store.deltavdevs.com (by upload, file, source). Who downloaded a guarded file is never reported.
+
 ## Where the data comes from
 
 - **Railway request logs**, read every 5 minutes for each site's service (two API calls a run, all sites batched). Needs `RAILWAY_API_TOKEN`, an account token so it can read FIRST Command's project too.
@@ -22,6 +25,8 @@ Analytics for every DeltaVDevs site, at https://analytics.deltavdevs.com. Staff 
   ```
 
   It reports the page, the referrer, UTM tags and clicks on links that leave the site. Only after the visitor accepts analytics cookies (the site's consent banner sets `dv_consent` to include `analytics`) does it keep a first-party visitor id (`dv_vid`, 13 months) and a per-tab session id. Global Privacy Control always counts as no. The banner records each choice at `POST /consent` as proof of consent.
+
+- **go and store**, which post to `POST /ingest/go` and `POST /ingest/store` with `ANALYTICS_INGEST_KEY` (bearer). Link changes, clicks and downloads arrive in batches; each carries the visitor's IP only to be hashed with the daily salt on arrival. Both are also in the site list, so they get uptime checks and request logs like the rest.
 
 ## Privacy
 

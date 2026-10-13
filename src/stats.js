@@ -102,6 +102,50 @@ export async function statsRoutes(app) {
     return { range, sites };
   });
 
+  // ---------- go.deltavdevs.com ----------
+  // Clicks reported by go. Bots are kept in the table but left out of every count here.
+  const plain = (table, where, span, bucket) => rows(`SELECT b.bucket AS at, COALESCE(t.n, 0)::int AS n FROM
+      generate_series(date_trunc('${bucket}', now() - $1::interval), date_trunc('${bucket}', now()), '1 ${bucket}') AS b(bucket)
+      LEFT JOIN (SELECT date_trunc('${bucket}', at) AS bucket, count(*) AS n FROM ${table} WHERE at > now() - $1::interval ${where} GROUP BY 1) t USING (bucket)
+      ORDER BY 1`, [span]);
+
+  app.get('/api/go', async request => {
+    const { range, span, bucket } = rangeOf(request);
+    const p = [span];
+    const [totals, clicks, links, sources, devices, dead] = await Promise.all([
+      one(`SELECT count(*) FILTER (WHERE NOT bot)::int AS clicks, count(*) FILTER (WHERE bot)::int AS bots, count(DISTINCT ip_hash) FILTER (WHERE NOT bot)::int AS visitors,
+             (SELECT count(*)::int FROM go_links) AS links, (SELECT count(*)::int FROM go_links WHERE disabled_at IS NULL) AS live
+           FROM go_clicks WHERE at > now() - $1::interval`, p),
+      plain('go_clicks', 'AND NOT bot', span, bucket),
+      top(`SELECT c.slug, l.destination, l.note, l.disabled_at, count(*)::int AS clicks, max(c.at) AS last_click,
+             (SELECT count(*)::int FROM go_clicks a WHERE a.slug = c.slug AND NOT a.bot) AS clicks_all
+           FROM go_clicks c LEFT JOIN go_links l USING (slug) WHERE c.at > now() - $1::interval AND NOT c.bot GROUP BY c.slug, l.destination, l.note, l.disabled_at ORDER BY clicks DESC`, p),
+      top(`SELECT COALESCE(referrer_host, '(direct)') AS source, count(*)::int AS clicks FROM go_clicks WHERE at > now() - $1::interval AND NOT bot GROUP BY 1 ORDER BY clicks DESC`, p),
+      top(`SELECT COALESCE(device, 'other') AS device, count(*)::int AS clicks FROM go_clicks WHERE at > now() - $1::interval AND NOT bot GROUP BY 1 ORDER BY clicks DESC`, p),
+      top(`SELECT l.slug, l.destination, l.created_by, l.created_at FROM go_links l WHERE l.disabled_at IS NULL
+             AND NOT EXISTS (SELECT 1 FROM go_clicks c WHERE c.slug = l.slug AND NOT c.bot AND c.at > now() - $1::interval) ORDER BY l.created_at DESC`, p),
+    ]);
+    return { range, bucket, totals, clicks, links, sources, devices, unused: dead, base: 'https://go.deltavdevs.com/' };
+  });
+
+  // ---------- store.deltavdevs.com ----------
+  app.get('/api/store', async request => {
+    const { range, span, bucket } = rangeOf(request);
+    const p = [span];
+    const [totals, downloads, bundles, files, sources, devices] = await Promise.all([
+      one(`SELECT count(*) FILTER (WHERE NOT bot)::int AS downloads, count(*) FILTER (WHERE bot)::int AS bots, COALESCE(sum(bytes) FILTER (WHERE NOT bot), 0)::bigint AS bytes,
+             count(*) FILTER (WHERE NOT bot AND access = 'public')::int AS public_downloads
+           FROM store_downloads WHERE at > now() - $1::interval`, p),
+      plain('store_downloads', 'AND NOT bot', span, bucket),
+      top(`SELECT bundle, (array_agg(title ORDER BY at DESC))[1] AS title, (array_agg(access ORDER BY at DESC))[1] AS access, count(*)::int AS downloads, COALESCE(sum(bytes), 0)::bigint AS bytes
+           FROM store_downloads WHERE at > now() - $1::interval AND NOT bot GROUP BY bundle ORDER BY downloads DESC`, p),
+      top(`SELECT file, count(*)::int AS downloads FROM store_downloads WHERE at > now() - $1::interval AND NOT bot GROUP BY file ORDER BY downloads DESC`, p),
+      top(`SELECT COALESCE(referrer_host, '(direct)') AS source, count(*)::int AS downloads FROM store_downloads WHERE at > now() - $1::interval AND NOT bot GROUP BY 1 ORDER BY downloads DESC`, p),
+      top(`SELECT COALESCE(device, 'other') AS device, count(*)::int AS downloads FROM store_downloads WHERE at > now() - $1::interval AND NOT bot GROUP BY 1 ORDER BY downloads DESC`, p),
+    ]);
+    return { range, bucket, totals: { ...totals, bytes: Number(totals.bytes) }, downloads, bundles: bundles.map(b => ({ ...b, bytes: Number(b.bytes) })), files, sources, devices };
+  });
+
   // ---------- short links ----------
   const destination = z.string().trim().url().max(2000).refine(u => new URL(u).protocol === 'https:', 'must be https');
   app.get('/api/links', async () => ({

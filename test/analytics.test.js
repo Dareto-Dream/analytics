@@ -16,7 +16,7 @@ if (process.env.TEST_PG_URL) {
 }
 Object.assign(process.env, {
   NODE_ENV: 'test', SESSION_SECRET: 'z'.repeat(48), PUBLIC_URL: 'http://localhost:3997', ANALYTICS_JOBS: 'off',
-  WARD_URL: WARD, WARD_CLIENT_ID: 'analytics-app', WARD_CLIENT_SECRET: 'app-secret', RAILWAY_API_TOKEN: 'rw-token',
+  WARD_URL: WARD, ANALYTICS_INGEST_KEY: 'i'.repeat(40), WARD_CLIENT_ID: 'analytics-app', WARD_CLIENT_SECRET: 'app-secret', RAILWAY_API_TOKEN: 'rw-token',
 });
 
 // ---------- fake Ward ----------
@@ -54,7 +54,7 @@ before(async () => {
   };
   await mod.dbm.migrate();
   db = mod.dbm.pool;
-  await db.query('TRUNCATE requests, ingest_cursors, pageviews, outbound, links, link_clicks, uptime_checks, consents, salts, sessions RESTART IDENTITY CASCADE');
+  await db.query('TRUNCATE requests, ingest_cursors, pageviews, outbound, links, link_clicks, go_links, go_clicks, store_downloads, uptime_checks, consents, salts, sessions RESTART IDENTITY CASCADE');
   app = await mod.server.buildApp({ logger: false });
 });
 after(async () => { if (app) await app.close(); globalThis.fetch = realFetch; });
@@ -175,6 +175,47 @@ test('short links: counted redirects; viewers read, admins manage, owners delete
   assert.equal((await app.inject({ method: 'DELETE', url: '/api/links/discord', headers: owner.headers })).statusCode, 200);
 });
 
+// ---------- go and store ----------
+test('ingest: needs the key; go links and clicks and store downloads land, IPs are hashed away', { skip }, async () => {
+  const auth = { authorization: `Bearer ${'i'.repeat(40)}` };
+  const now = new Date().toISOString();
+  const go = body => app.inject({ method: 'POST', url: '/ingest/go', headers: auth, payload: body });
+  assert.equal((await app.inject({ method: 'POST', url: '/ingest/go', payload: {} })).statusCode, 401);
+  assert.equal((await app.inject({ method: 'POST', url: '/ingest/go', headers: { authorization: 'Bearer nope' }, payload: {} })).statusCode, 401);
+  assert.equal((await app.inject({ method: 'POST', url: '/ingest/store', payload: {} })).statusCode, 401);
+
+  const link = { t: 'link', slug: 'discord', destination: 'https://discord.gg/x', note: null, created_by: 'Delta', created_at: now, disabled: false };
+  const click = (extra = {}) => ({ t: 'click', slug: 'discord', at: now, ref: 'www.youtube.com', device: 'mobile', bot: false, ip: '203.0.113.7', ...extra });
+  assert.equal((await go({ links: [link], clicks: [click(), click(), click({ bot: true, device: 'other' })] })).statusCode, 200);
+  assert.equal((await go({ links: [{ ...link, destination: 'https://discord.gg/y', disabled: true }] })).statusCode, 200);
+  assert.equal(await count("SELECT count(*) AS n FROM go_links WHERE slug = 'discord' AND destination = 'https://discord.gg/y' AND disabled_at IS NOT NULL"), 1, 'a link event updates the mirror');
+  assert.equal(await count('SELECT count(*) AS n FROM go_clicks'), 3);
+  const hashes = (await db.query('SELECT ip_hash FROM go_clicks WHERE NOT bot')).rows.map(r => r.ip_hash);
+  assert.ok(hashes[0] && hashes[0] === hashes[1], 'the same person on the same day is one visitor');
+  assert.ok(!JSON.stringify((await db.query('SELECT * FROM go_clicks')).rows).includes('203.0.113.7'), 'the raw IP is never stored');
+  assert.equal((await go({ clicks: [{ ...click(), slug: 'Bad Slug' }] })).statusCode, 400);
+  assert.equal((await go({ links: [], clicks: [], extra: 1 })).statusCode, 400);
+
+  const download = (extra = {}) => ({ t: 'download', at: now, bundle: 'abcdefghjk', title: 'Release 1', access: 'public', file: 'a.zip', bytes: 2048, ref: null, device: 'desktop', bot: false, ip: '203.0.113.8', ...extra });
+  const stored = await app.inject({ method: 'POST', url: '/ingest/store', headers: auth, payload: { downloads: [download(), download({ file: 'b.zip' }), download({ bot: true })] } });
+  assert.equal(stored.statusCode, 200);
+  assert.equal(await count('SELECT count(*) AS n FROM store_downloads'), 3);
+
+  const viewer = await staff('viewer');
+  const goStats = (await app.inject({ method: 'GET', url: '/api/go?range=7d', headers: { cookie: viewer.cookie } })).json();
+  assert.equal(goStats.totals.clicks, 2); assert.equal(goStats.totals.bots, 1);
+  assert.equal(goStats.links[0].slug, 'discord'); assert.equal(goStats.links[0].clicks, 2);
+  assert.equal(goStats.sources[0].source, 'www.youtube.com');
+  const storeStats = (await app.inject({ method: 'GET', url: '/api/store?range=7d', headers: { cookie: viewer.cookie } })).json();
+  assert.equal(storeStats.totals.downloads, 2); assert.equal(storeStats.totals.bytes, 4096);
+  assert.equal(storeStats.bundles[0].title, 'Release 1');
+  assert.equal((await app.inject({ method: 'GET', url: '/api/go' })).statusCode, 401, 'the charts are staff only');
+
+  assert.equal((await go({ links: [{ ...link, deleted: true }] })).statusCode, 200);
+  assert.equal(await count('SELECT count(*) AS n FROM go_links'), 0);
+  assert.equal(await count('SELECT count(*) AS n FROM go_clicks'), 3, 'history outlives the link');
+});
+
 // ---------- jobs ----------
 test('railway ingest: two calls a run, request ids dedupe, hosts pick the site, raw IPs never stored', { skip }, async () => {
   let calls = 0;
@@ -218,7 +259,11 @@ test('retention: after 13 months ids, hashes and user agents go, counts stay', {
   await db.query(`INSERT INTO requests (request_id, site, at, host, method, path, status, ip_hash, user_agent) VALUES ('old-1', 'blog', ${old}, 'blog.deltavdevs.com', 'GET', '/', 200, 'h', 'UA')`);
   await db.query(`INSERT INTO consents (site, at, consent_id, analytics, policy_version) VALUES ('blog', ${old}, gen_random_uuid(), true, 'x')`);
   await db.query("INSERT INTO salts (day, salt) VALUES (current_date - 5, '\\x00')");
+  await db.query(`INSERT INTO go_clicks (slug, at, ip_hash) VALUES ('x', ${old}, 'h'), ('x', now(), 'h2')`);
+  await db.query(`INSERT INTO store_downloads (at, bundle, ip_hash) VALUES (${old}, 'b', 'h')`);
   await mod.jobs.applyRetention();
+  assert.equal(await count("SELECT count(*) AS n FROM go_clicks WHERE slug = 'x' AND ip_hash IS NOT NULL"), 1, 'only the recent click keeps its hash');
+  assert.equal(await count("SELECT count(*) AS n FROM store_downloads WHERE bundle = 'b' AND ip_hash IS NOT NULL"), 0);
   const old1 = (await db.query("SELECT visitor_id, session_id, ip_hash FROM pageviews WHERE path = '/old'")).rows[0];
   assert.deepEqual(old1, { visitor_id: null, session_id: null, ip_hash: null });
   assert.ok((await db.query("SELECT visitor_id FROM pageviews WHERE path = '/new'")).rows[0].visitor_id, 'recent rows untouched');

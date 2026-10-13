@@ -167,12 +167,44 @@ async function linksView() {
       : h('p', { class: 'empty' }, 'No short links yet.'));
 }
 
+const bytesText = v => { const x = Number(v || 0); return x < 1024 ** 2 ? `${Math.round(x / 1024)} KB` : x < 1024 ** 3 ? `${(x / 1024 ** 2).toFixed(1)} MB` : `${(x / 1024 ** 3).toFixed(2)} GB`; };
+
+// go.deltavdevs.com: clicks on the short links made there.
+async function goView() {
+  const d = await api('GET', `/api/go?range=${range}`);
+  const t = d.totals;
+  mount(head('go.deltavdevs.com', 'Go links', ranges(), h('a', { class: 'button-link', href: d.base, target: '_blank', rel: 'noopener' }, h('button', { class: 'outline small', type: 'button', tabindex: -1 }, 'Open go'))),
+    h('div', { class: 'tiles' }, tile('clicks', n(t.clicks)), tile('unique (by day)', n(t.visitors)), tile('bot clicks', n(t.bots)), tile('links', n(t.links)), tile('live links', n(t.live))),
+    h('p', { class: 'caption' }, 'Links are made and changed at go.deltavdevs.com. Bot clicks are left out of every number except the bot count.'),
+    h('section', { class: 'card' }, barChart(d.clicks, { bucket: d.bucket })),
+    h('div', { class: 'panels' },
+      panel('Links', d.links, [{ key: 'slug', label: 'link', fmt: v => `/${v}` }, { key: 'clicks', label: 'clicks', n: 1 }, { key: 'clicks_all', label: 'all time', n: 1 }, { key: 'destination', label: 'goes to' }], { note: 'Most clicked in this range.' }),
+      panel('Sources', d.sources, [{ key: 'source', label: 'referrer' }, { key: 'clicks', label: 'clicks', n: 1 }], { note: 'Where the click came from. Many apps send no referrer, so “(direct)” is large.' }),
+      panel('Devices', d.devices, [{ key: 'device', label: 'device' }, { key: 'clicks', label: 'clicks', n: 1 }]),
+      panel('Live links nobody clicked', d.unused, [{ key: 'slug', label: 'link', fmt: v => `/${v}` }, { key: 'destination', label: 'goes to' }, { key: 'created_by', label: 'made by' }], { empty: 'Every live link got a click.' })));
+}
+
+// store.deltavdevs.com: downloads of the files shared there.
+async function storeView() {
+  const d = await api('GET', `/api/store?range=${range}`);
+  const t = d.totals;
+  mount(head('store.deltavdevs.com', 'Store downloads', ranges(), h('a', { class: 'button-link', href: 'https://store.deltavdevs.com/', target: '_blank', rel: 'noopener' }, h('button', { class: 'outline small', type: 'button', tabindex: -1 }, 'Open store'))),
+    h('div', { class: 'tiles' }, tile('downloads', n(t.downloads)), tile('data sent', bytesText(t.bytes)), tile('from public uploads', n(t.public_downloads)), tile('bot requests', n(t.bots))),
+    h('p', { class: 'caption' }, 'Who downloaded a guarded file is never sent here, only that it was downloaded. Files read out of a browsable zip count once per file.'),
+    h('section', { class: 'card' }, barChart(d.downloads, { bucket: d.bucket })),
+    h('div', { class: 'panels' },
+      panel('Uploads', d.bundles, [{ key: 'title', label: 'upload' }, { key: 'downloads', label: 'downloads', n: 1 }, { key: 'access', label: 'sharing' }, { key: 'bytes', label: 'sent', fmt: bytesText }]),
+      panel('Files', d.files, [{ key: 'file', label: 'file' }, { key: 'downloads', label: 'downloads', n: 1 }]),
+      panel('Sources', d.sources, [{ key: 'source', label: 'referrer' }, { key: 'downloads', label: 'downloads', n: 1 }]),
+      panel('Devices', d.devices, [{ key: 'device', label: 'device' }, { key: 'downloads', label: 'downloads', n: 1 }])));
+}
+
 // ---------- shell ----------
 function nav() {
   const here = location.hash || '#/';
   const link = (href, label) => h('a', { href, class: here === href ? 'active' : '' }, h('span', {}, label));
   $('#nav').replaceChildren(link('#/', 'Overview'), h('div', { class: 'nav-group' }, 'Sites'), ...me.sites.map(s => link(`#/site/${s.id}`, s.name)),
-    h('div', { class: 'nav-group' }, 'Tools'), link('#/uptime', 'Uptime'), link('#/links', 'Short links'));
+    h('div', { class: 'nav-group' }, 'Tools'), link('#/uptime', 'Uptime'), link('#/go', 'Go links'), link('#/store', 'Store downloads'), link('#/links', 'Old /r links'));
 }
 
 async function render() {
@@ -183,6 +215,8 @@ async function render() {
   try {
     if (site) await siteView(site[1]);
     else if (hash === '#/uptime') await uptimeView();
+    else if (hash === '#/go') await goView();
+    else if (hash === '#/store') await storeView();
     else if (hash === '#/links') await linksView();
     else await overview();
   } catch (err) { if (err.message !== 'Signed out') mount(h('p', { class: 'notice error' }, err.message)); }
